@@ -1,6 +1,7 @@
 """Generates and submits an email as a draft.
 """
 
+import traceback
 
 import base64
 from email.mime.audio import MIMEAudio
@@ -11,101 +12,106 @@ from email.mime.text import MIMEText
 import mimetypes
 import os
 
-# from apiclient import errors
+from apiclient import errors
 
 
-def CreateDraft(service, user_id, message_body):
-  """Create and insert a draft email. Print the returned draft's message and id.
+def create_draft(service, user_id, message_body):
+    """Create and insert a draft email. Print the returned draft's message and id.
 
-  Args:
-    service: Authorized Gmail API service instance.
-    user_id: User's email address. The special value "me"
-    can be used to indicate the authenticated user.
-    message_body: The body of the email message, including headers.
+    Args:
+        service: Authorized Gmail API service instance.
+        user_id: User's email address. The special value "me"
+        can be used to indicate the authenticated user.
+        message_body: The body of the email message, including headers.
 
-  Returns:
-    Draft object, including draft id and message meta data.
-  """
-  try:
-    message = {'message': message_body}
-    draft = service.users().drafts().create(userId=user_id, body=message).execute()
+    Return draft object, including draft id and message meta data.
+    """
 
-    print("Draft id: {}\nDraft message: {}".format(draft['id'], draft['message']))
-
-    return draft
-  except Error as e:
-    print("An error occurred: {}".format(e))
-    return None
+    try:
+        message = {'message': message_body}
+        draft = service.users().drafts().create(userId=user_id, body=message).execute()
 
 
-def CreateMessage(sender, to, subject, message_text):
-  """Create a message for an email.
+        print("Draft id: {}\nDraft message: {}".format(draft['id'], draft['message']))
 
-  Args:
-    sender: Email address of the sender.
-    to: Email address of the receiver.
-    subject: The subject of the email message.
-    message_text: The text of the email message.
+        return draft
 
-  Returns:
-    An object containing a base64url encoded email object.
-  """
-  message = MIMEText(message_text)
-  message['to'] = to
-  message['from'] = sender
-  message['subject'] = subject
-  return {'raw': base64.urlsafe_b64encode(message.as_string())}
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        print(traceback.format_exc())
+        return None
 
 
-def CreateMessageWithAttachment(sender, to, subject, message_text, file_dir,
-                                filename):
-  """Create a message for an email.
+def create_message(sender, to, subject, message_text):
+    """Create a message for an email.
 
-  Args:
-    sender: The email address of the sender.
-    to: The email address of the receiver.
-    subject: The subject of the email message.
-    message_text: The text of the email message.
-    file_dir: The directory containing the file to be attached.
-    filename: The name of the file to be attached.
+    Args:
+        sender: Email address of the sender.
+        to: Email address of the receiver.
+        subject: The subject of the email message.
+        message_text: The text of the email message.
 
-  Returns:
-    An object containing a base64url encoded email object.
-  """
-  message = MIMEMultipart()
-  message['to'] = to
-  message['from'] = sender
-  message['subject'] = subject
+    Returns:
+        An object containing a base64url encoded email object.
+    """
+    message = MIMEText(message_text)
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes())
+    raw = raw.decode()
+    return { 'raw': raw }
 
-  msg = MIMEText(message_text)
-  message.attach(msg)
 
-  path = os.path.join(file_dir, filename)
-  content_type, encoding = mimetypes.guess_type(path)
+def create_message_with_attachment(sender, to, subject, message_text, file_dir, filename):
+    """Create a message for an email.
+    Args:
+        sender: The email address of the sender.
+        to: The email address of the receiver.
+        subject: The subject of the email message.
+        message_text: The text of the email message.
+        file_dir: The directory containing the file to be attached.
+        filename: The name of the file to be attached.
 
-  if content_type is None or encoding is not None:
-    content_type = 'application/octet-stream'
-  main_type, sub_type = content_type.split('/', 1)
-  if main_type == 'text':
-    fp = open(path, 'rb')
-    msg = MIMEText(fp.read(), _subtype=sub_type)
-    fp.close()
-  elif main_type == 'image':
-    fp = open(path, 'rb')
-    msg = MIMEImage(fp.read(), _subtype=sub_type)
-    fp.close()
-  elif main_type == 'audio':
-    fp = open(path, 'rb')
-    msg = MIMEAudio(fp.read(), _subtype=sub_type)
-    fp.close()
-  else:
-    fp = open(path, 'rb')
-    msg = MIMEBase(main_type, sub_type)
-    msg.set_payload(fp.read())
-    fp.close()
+    Return an object containing a base64url encoded email object.
+    """
+    message = MIMEMultipart()
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
 
-  msg.add_header('Content-Disposition', 'attachment', filename=filename)
-  message.attach(msg)
+    msg = MIMEText(message_text)
+    message.attach(msg)
 
-  return {'raw': base64.urlsafe_b64encode(message.as_string())}
+    path = os.path.join(file_dir, filename)
+    content_type, encoding = mimetypes.guess_type(path)
 
+    if content_type is None or encoding is not None:
+        content_type = 'application/octet-stream'
+    main_type, sub_type = content_type.split('/', 1)
+
+    if main_type == 'text':
+        fp = open(path, 'rb')
+        msg = MIMEText(fp.read(), _subtype=sub_type)
+        fp.close()
+
+    elif main_type == 'image':
+        fp = open(path, 'rb')
+        msg = MIMEImage(fp.read(), _subtype=sub_type)
+        fp.close()
+
+    elif main_type == 'audio':
+        fp = open(path, 'rb')
+        msg = MIMEAudio(fp.read(), _subtype=sub_type)
+        fp.close()
+
+    else:
+        fp = open(path, 'rb')
+        msg = MIMEBase(main_type, sub_type)
+        msg.set_payload(fp.read())
+        fp.close()
+
+    msg.add_header('Content-Disposition', 'attachment', filename=filename)
+    message.attach(msg)
+
+    return {'raw': base64.urlsafe_b64encode(message.as_string())}
