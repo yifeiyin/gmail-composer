@@ -27,19 +27,21 @@ def create_draft(service, user_id, message_body):
     Return draft object, including draft id and message meta data.
     """
 
-    try:
-        message = {'message': message_body}
-        draft = service.users().drafts().create(userId=user_id, body=message).execute()
+    message = { 'message': message_body }
+    draft = service.users().drafts().create(userId=user_id, body=message).execute()
+
+    print("Draft id: {}\nDraft message: {}".format(draft['id'], draft['message']))
+
+    return draft
 
 
-        print("Draft id: {}\nDraft message: {}".format(draft['id'], draft['message']))
-
-        return draft
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        print(traceback.format_exc())
-        return None
+def add_label_to_message(service, user_id, message_id, label):
+    # See doc at https://developers.google.com/gmail/api/v1/reference/users/messages/modify
+    message_labels = { 'removeLabelIds': [], 'addLabelIds': [label] }
+    message = service.users().messages().modify(userId = user_id, id = message_id, body = message_labels).execute()
+    label_id = message['labelIds'][0]
+    print(f"Message {message_id} now has a label with id {label_id}")
+    return label_id
 
 
 def create_message(sender, to, subject, message_text):
@@ -54,7 +56,7 @@ def create_message(sender, to, subject, message_text):
     Returns:
         An object containing a base64url encoded email object.
     """
-    message = MIMEText(message_text)
+    message = MIMEText(message_text, 'html')
     message['to'] = to
     message['from'] = sender
     message['subject'] = subject
