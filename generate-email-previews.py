@@ -32,7 +32,7 @@ def format_template(template, details, fields):
 
 
 def main():
-    persons = load_persons_from_csv('secrets/19FallOffer.csv')
+    persons = load_persons_from_csv('secrets/2020Test.csv')
     common_fields = json_to_object(get_file_content('templates/common-fields.json'))
     timestamp = generate_timestamp()
 
