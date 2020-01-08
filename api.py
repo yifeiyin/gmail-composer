@@ -1,8 +1,12 @@
-"""Generates and submits an email as a draft.
-"""
+# Gmail api related imports
+import pickle
+import os.path
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from apiclient import errors
 
-import traceback
-
+# Email related imports
 import base64
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
@@ -12,7 +16,70 @@ from email.mime.text import MIMEText
 import mimetypes
 import os
 
-from apiclient import errors
+
+# If modifying these scopes, delete the file token.pickle.
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.compose',
+    'https://www.googleapis.com/auth/gmail.labels',
+    'https://www.googleapis.com/auth/gmail.modify'
+]
+
+def get_service():
+    """Returns the service object
+    """
+    credentials = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('secrets/token.pickle'):
+        with open('secrets/token.pickle', 'rb') as token:
+            credentials = pickle.load(token)
+
+    # If there are no (valid) credentials available, let the user log in.
+    if not credentials or not credentials.valid:
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('secrets/credentials.json', SCOPES)
+            credentials = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('secrets/token.pickle', 'wb') as token:
+            pickle.dump(credentials, token)
+
+    service = build('gmail', 'v1', credentials=credentials)
+    return service
+
+
+def get_labels(service):
+    results = service.users().labels().list(userId='me').execute()
+    labels = results.get('labels', [])
+    return labels
+
+
+def create_label(service, new_label_name):
+    # Doc https://developers.google.com/gmail/api/v1/reference/users/labels/create
+    # Add label to draft https://stackoverflow.com/questions/26578710/add-a-label-to-a-draft
+    existing = find_label_by_name(service, new_label_name)
+    if (existing is not None):
+        print(f"Label {new_label_name} already exists")
+        return existing
+
+    new_label_object = label = {'messageListVisibility': 'show', 'name': new_label_name, 'labelListVisibility': 'labelShow' }
+    label = service.users().labels().create(userId='me', body=new_label_object).execute()
+    return label['id']
+
+
+def find_label_by_name(service, name):
+    labels = get_labels(service)
+    labels = list(filter(lambda x: x['name'] == name, labels))
+    if (len(labels) == 0):
+        return None
+    elif (len(labels) == 1):
+        return labels[0]['id']
+    else:
+        print(f'WARNING: More than one label found: {labels}')
+        return labels[0]['id']
+
 
 
 def create_draft(service, user_id, message_body):
@@ -117,3 +184,4 @@ def create_message_with_attachment(sender, to, subject, message_text, file_dir, 
     message.attach(msg)
 
     return {'raw': base64.urlsafe_b64encode(message.as_string())}
+

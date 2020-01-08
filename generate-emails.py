@@ -1,7 +1,4 @@
 import csv
-from pprint import pprint
-import time
-
 from utilities import *
 
 def load_persons_from_csv(file_path):
@@ -10,9 +7,10 @@ def load_persons_from_csv(file_path):
         persons = csv.reader(file)
         for person in persons:
             result.append({
-                'time': person[0],
-                'name': person[1],
-                'email': person[2]
+                'name': person[0],
+                'email': person[1],
+                'team': person[2],
+                'leader': person[3]
             })
     return result
 
@@ -20,7 +18,7 @@ def load_persons_from_csv(file_path):
 def format_template(template, details, fields):
     """
     Args:
-        template_string: string
+        template: string
         details: dict
         fields: list of string
     Returns:
@@ -33,11 +31,8 @@ def format_template(template, details, fields):
     return template
 
 
-def generate_timestamp():
-    return f'{time.localtime().tm_hour}-{time.localtime().tm_min}-{time.localtime().tm_sec}'
-
 def main():
-    persons = load_persons_from_csv('secrets/19FallTimeTable.csv')
+    persons = load_persons_from_csv('secrets/19FallOffer.csv')
     common_fields = json_to_object(get_file_content('templates/common-fields.json'))
     timestamp = generate_timestamp()
 
@@ -48,11 +43,11 @@ def main():
         email['from'] = '021chinese.group@gmail.com'
         email['to'] = person['email']
 
-        email_body_preprocessed = get_file_content('templates/email-body.txt').replace('\n\n\n', '<br><br>\n').replace('\n\n', '<br>\n')
+        email_body_preprocessed = get_file_content('templates/email-body.txt')
         email['email_body_content'] = format_template(
             email_body_preprocessed,
             {**common_fields, **person},
-            ['date', 'location', 'time', 'name']
+            ['name', 'team', 'leader']
         )
         final_emails.append(email)
 
